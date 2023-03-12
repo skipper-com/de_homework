@@ -1,0 +1,37 @@
+Question 1:
+What is the count of records in the model fact_trips after running all models with the test run variable disabled and filtering for 2019 and 2020 
+data only (pickup datetime). You'll need to have completed the "Build the first dbt models" video and have been able to run the models via the CLI. 
+You should find the views and models for querying in your DWH.
+--: 61648442
+
+Question 2:
+What is the distribution between service type filtering by years 2019 and 2020 data as done in the videos. You will need to complete 
+"Visualising the data" videos, either using data studio or metabase.
+--: 89.9/10.1
+
+Question 3:
+What is the count of records in the model stg_fhv_tripdata after running all models with the test run variable disabled (:false). Create a staging model 
+for the fhv data for 2019 and do not add a deduplication step. Run it via the CLI without limits (is_test_run: false). Filter records with pickup 
+time in year 2019.
+--: 43244696
+
+Question 4:
+What is the count of records in the model fact_fhv_trips after running all dependencies with the test run variable disabled (:false). Create a core 
+model for the stg_fhv_tripdata joining with dim_zones. Similar to what we've done in fact_trips, keep only records with known pickup and dropoff 
+locations entries for pickup and dropoff locations. Run it via the CLI without limits (is_test_run: false) and filter records with pickup time in year 2019.
+--: 22998722
+
+Question 5:
+What is the month with the biggest amount of rides after building a tile for the fact_fhv_trips table Create a dashboard with some tiles 
+that you find interesting to explore the data. One tile should show the amount of trips per month, as done in the videos for fact_trips, 
+based on the fact_fhv_trips table.
+--: January
+
+--select count(*) from `dbt_apilugin.fact_trips` where date(pickup_datetime) between '2019-01-01' and '2020-12-31'
+--select count(*) from `dbt_apilugin.fact_fhv_trips` where date(pickup_datetime) between '2019-01-01' and '2019-12-31'
+--select count(*) from `dbt_apilugin.stg_fhv_tripdata` where date(pickup_datetime) between '2019-01-01' and '2020-12-31'
+--select count(*) from `nytaxi.fhv_taxi` where date(pickup_datetime) <= '2019-12-31' and date(pickup_datetime) >= '2019-01-01'
+select date(pickup_datetime), count(*) from `dbt_apilugin.fact_fhv_trips` group by 1 order by 1
+
+https://github.com/skipper-com/data-engineering-zoomcamp/tree/main/models
+https://www.linkedin.com/posts/alexander-pilugin_dezoomcamp-dataengineering-dbt-activity-7032990880932196352-iBbv?utm_source=share&utm_medium=member_desktop
