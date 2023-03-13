@@ -24,7 +24,6 @@ Which configurations below should be provided for Kafka Consumer but not needed 
 Question 6:
 Please implement a streaming application, for finding out popularity of PUlocationID across green and fhv trip datasets. Please use the datasets 
 fhv_tripdata_2019-01.csv.gz and green_tripdata_2019-01.csv.gz
---: 
 PS: If you encounter memory related issue, you can use the smaller portion of these two datasets as well, it is not necessary to find 
 exact number in the question.
 
@@ -32,3 +31,7 @@ Your code should include following
 
 Producer that reads csv files and publish rides in corresponding kafka topics (such as rides_green, rides_fhv)
 Pyspark-streaming-application that reads two kafka topics and writes both of them in topic rides_all and apply aggregations to find most popular pickup location.
+
+
+https://github.com/skipper-com/de_homework/tree/main/6_week
+https://www.linkedin.com/posts/alexander-pilugin_dezoomcamp-de-kafka-activity-7041074365626511360-64Ms?utm_source=share&utm_medium=member_desktop
