@@ -1,7 +1,8 @@
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
 
-from settings import RIDE_SCHEMA, CONSUME_TOPIC_RIDES_CSV, TOPIC_WINDOWED_VENDOR_ID_COUNT
+from settings import BOOTSTRAP_SERVERS, INPUT_DATA_PATH_GREEN, INPUT_DATA_PATH_FHV,\
+    PRODUCE_TOPIC_GREEN_RIDES, PRODUCE_TOPIC_FHV_RIDES, CONSUME_TOPIC_GREEN_RIDES, CONSUME_TOPIC_FHV_RIDES, RIDE_SCHEMA, TOPIC_RIDES_ALL
 
 
 def read_from_kafka(consume_topic: str):
@@ -31,7 +32,6 @@ def parse_ride_from_kafka_message(df, schema):
         df = df.withColumn(field.name, col.getItem(idx).cast(field.dataType))
     return df.select([field.name for field in schema])
 
-
 def sink_console(df, output_mode: str = 'complete', processing_time: str = '5 seconds'):
     write_query = df.writeStream \
         .outputMode(output_mode) \
@@ -41,23 +41,27 @@ def sink_console(df, output_mode: str = 'complete', processing_time: str = '5 se
         .start()
     return write_query  # pyspark.sql.streaming.StreamingQuery
 
+# union df
+def concat_df(df1, df2):
+    result_df = df1.union(df2)
+    return result_df
 
-def sink_memory(df, query_name, query_template):
-    query_df = df \
-        .writeStream \
-        .queryName(query_name) \
-        .format("memory") \
-        .start()
-    query_str = query_template.format(table_name=query_name)
-    query_results = spark.sql(query_str)
-    return query_results, query_df
+# def sink_memory(df, query_name, query_template):
+#     query_df = df \
+#         .writeStream \
+#         .queryName(query_name) \
+#         .format("memory") \
+#         .start()
+#     query_str = query_template.format(table_name=query_name)
+#     query_results = spark.sql(query_str)
+#     return query_results, query_df
 
 
 def sink_kafka(df, topic):
     write_query = df.writeStream \
         .format("kafka") \
         .option("kafka.bootstrap.servers", "localhost:9092,broker:29092") \
-        .outputMode('complete') \
+        .outputMode('append') \
         .option("topic", topic) \
         .option("checkpointLocation", "checkpoint") \
         .start()
@@ -74,17 +78,16 @@ def prepare_df_to_kafka_sink(df, value_columns, key_column=None):
     return df.select(['key', 'value'])
 
 
-def op_groupby(df, column_names):
-    df_aggregation = df.groupBy(column_names).count()
+def agg_popular(df, column_names):
+    df_aggregation = df.groupBy(column_names).count().limit(1)
     return df_aggregation
 
-
-def op_windowed_groupby(df, window_duration, slide_duration):
-    df_windowed_aggregation = df.groupBy(
-        F.window(timeColumn=df.tpep_pickup_datetime, windowDuration=window_duration, slideDuration=slide_duration),
-        df.vendor_id
-    ).count()
-    return df_windowed_aggregation
+# def op_windowed_groupby(df, window_duration, slide_duration):
+#     df_windowed_aggregation = df.groupBy(
+#         F.window(timeColumn=df.tpep_pickup_datetime, windowDuration=window_duration, slideDuration=slide_duration),
+#         df.vendor_id
+#     ).count()
+#     return df_windowed_aggregation
 
 
 if __name__ == "__main__":
@@ -92,24 +95,24 @@ if __name__ == "__main__":
     spark.sparkContext.setLogLevel('WARN')
 
     # read_streaming data
-    df_consume_stream = read_from_kafka(consume_topic=CONSUME_TOPIC_RIDES_CSV)
-    print(df_consume_stream.printSchema())
+    df_consume_stream_green = read_from_kafka(consume_topic=CONSUME_TOPIC_GREEN_RIDES)
+    df_consume_stream_fhv = read_from_kafka(consume_topic=CONSUME_TOPIC_FHV_RIDES)
+    print(df_consume_stream_green.printSchema())
+    print(df_consume_stream_fhv.printSchema())
 
     # parse streaming data
-    df_rides = parse_ride_from_kafka_message(df_consume_stream, RIDE_SCHEMA)
-    print(df_rides.printSchema())
+    df_green_rides = parse_ride_from_kafka_message(df_consume_stream_green, RIDE_SCHEMA)
+    df_fhv_rides = parse_ride_from_kafka_message(df_consume_stream_fhv, RIDE_SCHEMA)
+    print(df_green_rides.printSchema())
+    print(df_fhv_rides.printSchema())
 
-    sink_console(df_rides, output_mode='append')
-
-    df_trip_count_by_vendor_id = op_groupby(df_rides, ['vendor_id'])
-    df_trip_count_by_pickup_date_vendor_id = op_windowed_groupby(df_rides, window_duration="10 minutes",
-                                                                 slide_duration='5 minutes')
-
-    # write the output out to the console for debugging / testing
-    sink_console(df_trip_count_by_vendor_id)
     # write the output to the kafka topic
-    df_trip_count_messages = prepare_df_to_kafka_sink(df=df_trip_count_by_pickup_date_vendor_id,
-                                                      value_columns=['count'], key_column='vendor_id')
-    kafka_sink_query = sink_kafka(df=df_trip_count_messages, topic=TOPIC_WINDOWED_VENDOR_ID_COUNT)
-
+    df_rides_prepared = prepare_df_to_kafka_sink(df=df_green_rides.union(df_fhv_rides), value_columns=['PULocationID'], key_column='vendor_id')
+    kafka_sink_query = sink_kafka(df=df_rides_prepared, topic=TOPIC_RIDES_ALL)
+    
+    # write the output out to the console for debugging / testin
+    df_most_popular_loc_id = agg_popular(df_green_rides.union(df_fhv_rides), ['PULocationID'])
+    sink_console(df_most_popular_loc_id)
+    # df_trip_count_by_pickup_date_vendor_id = op_windowed_groupby(df_rides, window_duration="10 minutes", slide_duration='5 minutes')
+    
     spark.streams.awaitAnyTermination()

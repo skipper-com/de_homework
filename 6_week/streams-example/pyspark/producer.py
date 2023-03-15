@@ -3,8 +3,8 @@ from time import sleep
 from typing import Dict
 from kafka import KafkaProducer
 
-from settings import BOOTSTRAP_SERVERS, INPUT_DATA_PATH, PRODUCE_TOPIC_RIDES_CSV
-
+from settings import BOOTSTRAP_SERVERS, INPUT_DATA_PATH_GREEN, INPUT_DATA_PATH_FHV,\
+    PRODUCE_TOPIC_GREEN_RIDES, PRODUCE_TOPIC_FHV_RIDES, CONSUME_TOPIC_GREEN_RIDES, CONSUME_TOPIC_FHV_RIDES
 
 def delivery_report(err, msg):
     if err is not None:
@@ -27,11 +27,11 @@ class RideCSVProducer:
             reader = csv.reader(f)
             header = next(reader)  # skip the header
             for row in reader:
-                # vendor_id, passenger_count, trip_distance, payment_type, total_amount
-                records.append(f'{row[0]}, {row[1]}, {row[2]}, {row[3]}, {row[4]}, {row[9]}, {row[16]}')
+                # vendor_id, PULocationID
+                records.append(f'{row[0]}, {row[5]}')
                 ride_keys.append(str(row[0]))
                 i += 1
-                if i == 5:
+                if i == 100000:
                     break
         return zip(ride_keys, records)
 
@@ -40,7 +40,7 @@ class RideCSVProducer:
             key, value = key_value
             try:
                 self.producer.send(topic=topic, key=key, value=value)
-                print(f"Producing record for <key: {key}, value:{value}>")
+                #print(f"Producing record for <key: {key}, value:{value}>")
             except KeyboardInterrupt:
                 break
             except Exception as e:
@@ -57,6 +57,8 @@ if __name__ == "__main__":
         'value_serializer': lambda x: x.encode('utf-8')
     }
     producer = RideCSVProducer(props=config)
-    ride_records = producer.read_records(resource_path=INPUT_DATA_PATH)
-    print(ride_records)
-    producer.publish(topic=PRODUCE_TOPIC_RIDES_CSV, records=ride_records)
+    ride_records_green = producer.read_records(resource_path=INPUT_DATA_PATH_GREEN)
+    ride_records_fhv = producer.read_records(resource_path=INPUT_DATA_PATH_FHV)
+    #print(ride_records)
+    producer.publish(topic=CONSUME_TOPIC_GREEN_RIDES, records=ride_records_green)
+    producer.publish(topic=CONSUME_TOPIC_FHV_RIDES, records=ride_records_fhv)
